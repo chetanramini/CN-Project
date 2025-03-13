@@ -43,6 +43,9 @@ public class PeerProcess {
             // Step 4 (Client-Side): Initiate connections to peers with lower peer IDs.
             initiateConnections();
 
+            // Step 6: Schedule choking/unchoking tasks.
+            scheduleChokingTasks();
+
             System.out.println("Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
             e.printStackTrace();
@@ -100,6 +103,26 @@ public class PeerProcess {
                 }
             }
         }
+    }
+
+    // Step 6: Schedule periodic tasks for choking/unchoking mechanism.
+    private void scheduleChokingTasks() {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
+        // Task for selecting preferred neighbors every unchokingInterval seconds.
+        scheduler.scheduleAtFixedRate(() -> {
+            System.out.println("Peer " + localPeerId + " selecting preferred neighbors...");
+            // TODO: Compute download rates from each connection.
+            // TODO: Select top config.numberOfPreferredNeighbors among interested peers.
+            // TODO: Send unchoke messages to these peers and choke others as necessary.
+        }, config.unchokingInterval, config.unchokingInterval, TimeUnit.SECONDS);
+
+        // Task for optimistic unchoking every optimisticUnchokingInterval seconds.
+        scheduler.scheduleAtFixedRate(() -> {
+            System.out.println("Peer " + localPeerId + " selecting optimistic unchoked neighbor...");
+            // TODO: Randomly select one peer from those that are choked but interested.
+            // TODO: Send an unchoke message to that peer.
+        }, config.optimisticUnchokingInterval, config.optimisticUnchokingInterval, TimeUnit.SECONDS);
     }
 
     // Main method to launch the peer process.
