@@ -7,8 +7,8 @@ public class PeerProcess {
     private int localPeerId;
     private Config config;
     private List<PeerInfo> peerInfoList = new ArrayList<>();
-    // Maintain a map of connections (peerID -> ConnectionHandler)
     private Map<Integer, ConnectionHandler> connectionMap = new ConcurrentHashMap<>();
+    private FileManager fileManager;
 
     public PeerProcess(int localPeerId) {
         this.localPeerId = localPeerId;
@@ -20,23 +20,36 @@ public class PeerProcess {
             config = new Config("Common.cfg");
             readPeerInfo("PeerInfo.cfg");
 
-            // Step 4: Start the server thread for incoming connections
+            // Initialize FileManager based on whether this peer has the complete file.
+            boolean hasFile = false;
+            for (PeerInfo pi : peerInfoList) {
+                if (pi.peerId == localPeerId) {
+                    hasFile = pi.hasFile;
+                    break;
+                }
+            }
+
+            // ✅ FIXED: Use correct folder naming (no "peer_" prefix)
+            String peerFolder = String.valueOf(localPeerId);
+
+            fileManager = new FileManager(peerFolder, config.fileName, config.fileSize, config.pieceSize, hasFile);
+
+            // Step 4 (Server-Side): Start a server thread for incoming connections.
             new Thread(this::startServer).start();
 
-            // Optional pause to ensure the server has started
+            // Optional pause to ensure the server thread has started.
             Thread.sleep(1000);
 
-            // Step 4: Initiate connections to peers with lower IDs
+            // Step 4 (Client-Side): Initiate connections to peers with lower peer IDs.
             initiateConnections();
 
             System.out.println("Peer " + localPeerId + " setup complete.");
-
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // Read PeerInfo.cfg and populate the list.
+    // Reads PeerInfo.cfg and populates peerInfoList.
     private void readPeerInfo(String fileName) throws IOException {
         BufferedReader br = new BufferedReader(new FileReader(fileName));
         String line;
@@ -49,7 +62,7 @@ public class PeerProcess {
         br.close();
     }
 
-    // Server-side: Listen for incoming connections.
+    // Server-side functionality: listens for incoming connections.
     private void startServer() {
         int myPort = 0;
         for (PeerInfo pi : peerInfoList) {
@@ -64,7 +77,6 @@ public class PeerProcess {
                 Socket socket = serverSocket.accept();
                 System.out.println("Accepted connection from " + socket.getInetAddress());
                 ConnectionHandler handler = new ConnectionHandler(socket, localPeerId);
-                // For a complete implementation, you may add the handler to a map after handshake.
                 new Thread(handler).start();
             }
         } catch (IOException e) {
@@ -72,7 +84,7 @@ public class PeerProcess {
         }
     }
 
-    // Client-side: Connect to peers with lower peer IDs.
+    // Client-side functionality: connects to peers with lower peer IDs.
     private void initiateConnections() {
         for (PeerInfo pi : peerInfoList) {
             if (pi.peerId < localPeerId) {
