@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.BitSet;
 
 public class ConnectionHandler implements Runnable {
     private Socket socket;
@@ -7,10 +8,13 @@ public class ConnectionHandler implements Runnable {
     private int remotePeerId = -1;
     private DataInputStream din;
     private DataOutputStream dout;
+    private FileManager fileManager; // Injected from PeerProcess
 
-    public ConnectionHandler(Socket socket, int localPeerId) {
+    public ConnectionHandler(Socket socket, int localPeerId, FileManager fileManager) {
         this.socket = socket;
         this.localPeerId = localPeerId;
+        this.fileManager = fileManager;
+
         try {
             din = new DataInputStream(socket.getInputStream());
             dout = new DataOutputStream(socket.getOutputStream());
@@ -19,14 +23,12 @@ public class ConnectionHandler implements Runnable {
         }
     }
 
-    // Send the handshake message.
     public void sendHandshake() throws IOException {
         byte[] handshakeMsg = ProtocolUtils.createHandshakeMessage(localPeerId);
         dout.write(handshakeMsg);
         dout.flush();
     }
 
-    // Receive and parse the handshake message.
     public void receiveHandshake() throws Exception {
         byte[] handshakeMsg = new byte[ProtocolUtils.HANDSHAKE_MSG_LENGTH];
         din.readFully(handshakeMsg);
@@ -34,27 +36,65 @@ public class ConnectionHandler implements Runnable {
         System.out.println("Handshake received from peer " + remotePeerId);
     }
 
+    public void sendBitfield(BitSet localBitfield, int numPieces) throws IOException {
+        byte[] bitfieldBytes = ProtocolUtils.bitSetToByteArray(localBitfield, numPieces);
+        sendMessage((byte) 5, bitfieldBytes);
+        System.out.println("Sent bitfield to peer " + remotePeerId);
+    }
+
+    public void handleBitfield(byte[] payload) throws IOException {
+        BitSet remoteBitfield = ProtocolUtils.byteArrayToBitSet(payload);
+        System.out.println("Received bitfield from peer " + remotePeerId);
+
+        boolean interested = false;
+        for (int i = 0; i < fileManager.getBitfield().length(); i++) {
+            if (!fileManager.getBitfield().get(i) && remoteBitfield.get(i)) {
+                interested = true;
+                break;
+            }
+        }
+
+        byte msgType = (byte)(interested ? 2 : 3); // interested or not interested
+        sendMessage(msgType, null);
+        System.out.println("Sent " + (interested ? "interested" : "not interested") + " to peer " + remotePeerId);
+    }
+
+    public void sendMessage(byte msgType, byte[] payload) throws IOException {
+        int length = 1 + (payload == null ? 0 : payload.length);
+        dout.writeInt(length);
+        dout.writeByte(msgType);
+        if (payload != null) {
+            dout.write(payload);
+        }
+        dout.flush();
+    }
+
     @Override
     public void run() {
         try {
-            // For simplicity, we send the handshake first then receive.
             sendHandshake();
             receiveHandshake();
 
-            // After handshake, you can implement additional message exchange.
+            // Send bitfield after handshake
+            sendBitfield(fileManager.getBitfield(), fileManager.getBitfield().length());
+
             while (true) {
-                // Read the message length (4 bytes)
                 int msgLength = din.readInt();
-                // Read the message type (1 byte)
                 byte msgType = din.readByte();
-                // Read the payload (if any)
                 byte[] payload = new byte[msgLength - 1];
                 if (payload.length > 0) {
                     din.readFully(payload);
                 }
-                System.out.println("Received message type " + msgType + " from peer " + remotePeerId);
-                // Process the message based on type...
+
+                switch (msgType) {
+                    case 5:
+                        handleBitfield(payload);
+                        break;
+                    default:
+                        System.out.println("Received message type " + msgType + " from peer " + remotePeerId);
+                }
             }
+
         } catch (EOFException eof) {
             System.out.println("Connection closed by peer " + remotePeerId);
         } catch (Exception e) {
@@ -69,16 +109,4 @@ public class ConnectionHandler implements Runnable {
             }
         }
     }
-
-    // Optional: A method to send messages.
-    public void sendMessage(byte msgType, byte[] payload) throws IOException {
-        int length = 1 + (payload == null ? 0 : payload.length);
-        dout.writeInt(length);
-        dout.writeByte(msgType);
-        if (payload != null) {
-            dout.write(payload);
-        }
-        dout.flush();
-    }
 }
-
