@@ -79,7 +79,7 @@ public class PeerProcess {
             while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("Accepted connection from " + socket.getInetAddress());
-                ConnectionHandler handler = new ConnectionHandler(socket, localPeerId);
+                ConnectionHandler handler = new ConnectionHandler(socket, localPeerId, fileManager);
                 new Thread(handler).start();
             }
         } catch (IOException e) {
@@ -94,7 +94,7 @@ public class PeerProcess {
                 try {
                     Socket socket = new Socket(pi.hostName, pi.port);
                     System.out.println("Peer " + localPeerId + " connected to peer " + pi.peerId);
-                    ConnectionHandler handler = new ConnectionHandler(socket, localPeerId);
+                    ConnectionHandler handler = new ConnectionHandler(socket, localPeerId, fileManager);
                     connectionMap.put(pi.peerId, handler);
                     new Thread(handler).start();
                 } catch (IOException e) {

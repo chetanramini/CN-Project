@@ -1,5 +1,6 @@
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.BitSet;
 
 public class ProtocolUtils {
     public static final String HANDSHAKE_HEADER = "P2PFILESHARINGPROJ"; // exactly 18 bytes
@@ -36,4 +37,28 @@ public class ProtocolUtils {
         int peerId = buffer.getInt();
         return peerId;
     }
+
+    // Converts BitSet to byte[] padded to exact number of pieces
+    public static byte[] bitSetToByteArray(BitSet bitSet, int numPieces) {
+        int numBytes = (int) Math.ceil(numPieces / 8.0);
+        byte[] bytes = new byte[numBytes];
+        for (int i = 0; i < numPieces; i++) {
+            if (bitSet.get(i)) {
+                bytes[i / 8] |= 1 << (7 - (i % 8));
+            }
+        }
+        return bytes;
+    }
+
+    // Converts byte[] to BitSet
+    public static BitSet byteArrayToBitSet(byte[] bytes) {
+        BitSet bitSet = new BitSet(bytes.length * 8);
+        for (int i = 0; i < bytes.length * 8; i++) {
+            if ((bytes[i / 8] & (1 << (7 - (i % 8)))) != 0) {
+                bitSet.set(i);
+            }
+        }
+        return bitSet;
+    }
+
 }

@@ -1,5 +1,9 @@
 #!/bin/bash
-java -cp bin Peer 1001 6001 &
-java -cp bin Peer 1002 6002 localhost 6001 &
-java -cp bin Peer 1003 6003 localhost 6002 &
+java -cp bin PeerProcess 1001 &
+sleep 3
+
+java -cp bin PeerProcess 1002 &
+sleep 1
+
+java -cp bin PeerProcess 1003 &
 echo "✅ Peers are running in the background."
