@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.BitSet;
 
 public class ConnectionHandler implements Runnable {
+    public int downloadedBytes = 0;  // Resets every interval
     private Socket socket;
     public int localPeerId;
     public int remotePeerId = -1;
@@ -133,6 +134,7 @@ public class ConnectionHandler implements Runnable {
                 int idx = pm.pieceIndex;
                 System.out.println("Received piece " + idx + " from peer " + remotePeerId);
                 fileManager.writePiece(idx, pm.pieceData);
+                downloadedBytes += pm.pieceData.length;
 
                 if (!fileManager.isComplete() && isUnchoked) {
                     int next = getMissingPiece(remoteBitfield, fileManager.getBitfield());
