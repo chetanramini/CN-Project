@@ -2,7 +2,7 @@ import java.io.*;
 import java.util.BitSet;
 
 public class FileManager {
-    private String peerFolder;    // Folder where files are stored (1001, 1002, etc.)
+    private String peerFolder;    // Folder where files are stored (e.g., "1001")
     private String fileName;      // File name (e.g., "tree.jpg")
     private int fileSize;         // Total file size in bytes
     private int pieceSize;        // Size of each piece in bytes
@@ -18,21 +18,20 @@ public class FileManager {
         this.fileSize = fileSize;
         this.pieceSize = pieceSize;
         this.numPieces = (fileSize + pieceSize - 1) / pieceSize;
-
         this.bitfield = new BitSet(numPieces);
         if (hasFile) {
+            // For the seeder, mark all pieces as available and split the file.
             bitfield.set(0, numPieces, true);
             splitFileIntoPieces();
         }
     }
 
-    // Checks if the given folder is a valid peer directory (strictly between 1001 - 1006)
+    // Checks if the given folder is a valid peer directory (peer IDs between 1001 and 1006)
     private boolean isValidPeerFolder(String folderName) {
         File folder = new File(folderName);
         if (!folder.exists() || !folder.isDirectory()) {
             return false;
         }
-
         try {
             int peerId = Integer.parseInt(folderName);
             return peerId >= 1001 && peerId <= 1006;
@@ -41,10 +40,22 @@ public class FileManager {
         }
     }
 
+    // Returns the current bitfield as a BitSet.
     public BitSet getBitfield() {
         return bitfield;
     }
+    
+    // Returns the bitfield as a byte array (for sending in a BitfieldMessage).
+    public byte[] getBitfieldBytes() {
+        return bitfield.toByteArray();
+    }
+    
+    // Returns the total number of pieces.
+    public int getNumberOfPieces() {
+        return numPieces;
+    }
 
+    // Splits the complete file into individual piece files.
     private void splitFileIntoPieces() throws IOException {
         File file = new File(peerFolder, fileName);
         if (!file.exists()) {
@@ -68,6 +79,7 @@ public class FileManager {
         System.out.println("File split into " + numPieces + " pieces.");
     }
 
+    // Writes a received piece to disk and updates the bitfield.
     public void writePiece(int pieceIndex, byte[] data) throws IOException {
         if (pieceIndex < 0 || pieceIndex >= numPieces) {
             throw new IllegalArgumentException("Invalid piece index");
@@ -80,6 +92,7 @@ public class FileManager {
         System.out.println("Wrote piece " + pieceIndex + " to " + peerFolder);
     }
 
+    // Checks if the complete file has been assembled.
     public boolean isComplete() {
         return bitfield.cardinality() == numPieces;
     }
