@@ -45,6 +45,7 @@ public class PeerProcess {
 
             // 5. Schedule random choke/unchoke every 3 seconds
             scheduleChokingTasks();
+            scheduleOptimisticUnchoking();
 
             System.out.println("Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
@@ -98,45 +99,50 @@ public class PeerProcess {
 
     private void scheduleChokingTasks() {
         ScheduledExecutorService svc = Executors.newScheduledThreadPool(1);
-        final int interval = 3;  // seconds
+        final int p = config.unchokingInterval;
         final int k = config.numberOfPreferredNeighbors;
-
+    
         svc.scheduleAtFixedRate(() -> {
-            // 1. Collect all interested handlers
-            List<ConnectionHandler> interested = new ArrayList<>();
-            for (ConnectionHandler h : handlers) {
-                if (h.isInterested) interested.add(h);
-            }
-
-            // 2. Randomly pick k preferred
-            Collections.shuffle(interested);
-            Set<ConnectionHandler> preferred = new HashSet<>(
-                interested.subList(0, Math.min(k, interested.size()))
-            );
-
-            // 3. Log selection
-            System.out.println("Peer " + localPeerId + " [RAND CHOKE] preferred: " +
-                preferred.stream()
-                         .map(h -> String.valueOf(h.remotePeerId))
-                         .collect(Collectors.joining(","))
-            );
-
-            // 4. Send choke/unchoke
+            // 1. Get all interested peers
+            List<ConnectionHandler> interested = handlers.stream()
+                .filter(h -> h.isInterested)
+                .collect(Collectors.toList());
+    
+            // 2. Sort by download rate (descending)
+            interested.sort((h1, h2) -> Integer.compare(h2.downloadedBytes, h1.downloadedBytes));
+    
+            // 3. Pick top k preferred neighbors
+            List<ConnectionHandler> preferred = interested.subList(0, Math.min(k, interested.size()));
+    
+            // 4. Log selection
+            String prefIds = preferred.stream()
+                .map(h -> String.valueOf(h.remotePeerId))
+                .collect(Collectors.joining(","));
+            System.out.println("Peer " + localPeerId + " has preferred neighbors " + prefIds);
+    
+            // 5. Send choke/unchoke
             for (ConnectionHandler h : handlers) {
                 if (preferred.contains(h)) {
-                    h.sendMessage(new Message.UnchokeMessage());
-                    h.isUnchoked = true;
-                    h.isOptimistic = false;
-                    System.out.println(" → Unchoked peer " + h.remotePeerId);
+                    if (!h.isUnchoked || h.isOptimistic) {
+                        h.sendMessage(new Message.UnchokeMessage());
+                        h.isUnchoked = true;
+                        h.isOptimistic = false;
+                        System.out.println(" → Unchoked peer " + h.remotePeerId);
+                    }
                 } else {
-                    h.sendMessage(new Message.ChokeMessage());
-                    h.isUnchoked = false;
-                    h.isOptimistic = false;
-                    System.out.println(" → Choked peer  " + h.remotePeerId);
+                    if (h.isUnchoked && !h.isOptimistic) {
+                        h.sendMessage(new Message.ChokeMessage());
+                        h.isUnchoked = false;
+                        System.out.println(" → Choked peer " + h.remotePeerId);
+                    }
                 }
+    
+                // 6. Reset download counters
+                h.downloadedBytes = 0;
             }
-        }, 0, interval, TimeUnit.SECONDS);
+        }, 0, p, TimeUnit.SECONDS);
     }
+    
 
     public static void main(String[] args) {
         if (args.length != 1) {
@@ -145,4 +151,28 @@ public class PeerProcess {
         }
         new PeerProcess(Integer.parseInt(args[0])).start();
     }
+
+    private void scheduleOptimisticUnchoking() {
+        ScheduledExecutorService svc = Executors.newScheduledThreadPool(1);
+        final int m = config.optimisticUnchokingInterval;
+    
+        svc.scheduleAtFixedRate(() -> {
+            // Filter for peers that are interested but choked (and not already optimistic)
+            List<ConnectionHandler> candidates = handlers.stream()
+                .filter(h -> h.isInterested && !h.isUnchoked && !h.isOptimistic)
+                .collect(Collectors.toList());
+    
+            if (candidates.isEmpty()) return;
+    
+            // Pick one at random
+            ConnectionHandler chosen = candidates.get(new Random().nextInt(candidates.size()));
+            chosen.sendMessage(new Message.UnchokeMessage());
+            chosen.isUnchoked = true;
+            chosen.isOptimistic = true;
+    
+            System.out.println("Peer " + localPeerId +
+                " has optimistically unchoked peer " + chosen.remotePeerId);
+        }, 0, m, TimeUnit.SECONDS);
+    }    
 }
+
