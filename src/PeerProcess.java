@@ -9,7 +9,8 @@ public class PeerProcess {
     private Config config;
     private List<PeerInfo> peerInfoList = new ArrayList<>();
     // Use a thread-safe list for all handlers
-    private List<ConnectionHandler> handlers = new CopyOnWriteArrayList<>();
+    public static List<ConnectionHandler> handlers = new CopyOnWriteArrayList<>();
+
     private FileManager fileManager;
 
     public PeerProcess(int localPeerId) {
@@ -98,6 +99,9 @@ public class PeerProcess {
     }
 
     private void scheduleChokingTasks() {
+        // Optional cleanup: Only allow seeder peers to run choking logic
+        if (!fileManager.isComplete()) return;
+
         ScheduledExecutorService svc = Executors.newScheduledThreadPool(1);
         final int p = config.unchokingInterval;
         final int k = config.numberOfPreferredNeighbors;
