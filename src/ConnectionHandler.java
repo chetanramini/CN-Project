@@ -39,13 +39,13 @@ public class ConnectionHandler implements Runnable {
         byte[] buf = new byte[ProtocolUtils.HANDSHAKE_MSG_LENGTH];
         din.readFully(buf);
         remotePeerId = ProtocolUtils.parseHandshakeMessage(buf);
-        System.out.println("Handshake received from peer " + remotePeerId);
+        PeerProcess.logger.log("Peer " + localPeerId + " is connected from Peer " + remotePeerId + ".");
     }
 
     public void sendBitfield() {
         byte[] bf = fileManager.getBitfieldBytes();
         sendMessage(new Message.BitfieldMessage(bf));
-        System.out.println("Sent bitfield to peer " + remotePeerId);
+        PeerProcess.logger.log("Peer " + localPeerId + " sent Bitfield to Peer " + remotePeerId + ".");
     }
 
     @Override
@@ -64,7 +64,7 @@ public class ConnectionHandler implements Runnable {
                 processMessage(msg);
             }
         } catch (EOFException eof) {
-            System.out.println("Connection closed by peer " + remotePeerId);
+            PeerProcess.logger.log("Peer " + localPeerId + " connection closed by Peer " + remotePeerId + ".");
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -81,65 +81,62 @@ public class ConnectionHandler implements Runnable {
             if (msg instanceof Message.BitfieldMessage) {
                 byte[] bf = msg.payload == null ? new byte[0] : msg.payload;
                 remoteBitfield = BitSet.valueOf(bf);
-                System.out.println("Received bitfield from peer " + remotePeerId);
-
+                PeerProcess.logger.log("Peer " + localPeerId + " received Bitfield from Peer " + remotePeerId + ".");
                 int miss = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                 if (miss != -1) {
                     sendMessage(new Message.InterestedMessage());
                     isInterested = true;
-                    System.out.println("Sent Interested to peer " + remotePeerId);
+                    PeerProcess.logger.log("Peer " + localPeerId + " sent Interested to Peer " + remotePeerId + ".");
                 } else {
                     sendMessage(new Message.NotInterestedMessage());
                     isInterested = false;
-                    System.out.println("Sent NotInterested to peer " + remotePeerId);
+                    PeerProcess.logger.log("Peer " + localPeerId + " sent NotInterested to Peer " + remotePeerId + ".");
                 }
 
             } else if (msg instanceof Message.InterestedMessage) {
                 isInterested = true;
+                PeerProcess.logger.log("Peer " + localPeerId + " received Interested from Peer " + remotePeerId + ".");
 
             } else if (msg instanceof Message.NotInterestedMessage) {
                 isInterested = false;
+                PeerProcess.logger.log("Peer " + localPeerId + " received NotInterested from Peer " + remotePeerId + ".");
 
             } else if (msg instanceof Message.UnchokeMessage) {
                 isUnchoked = true;
-                System.out.println("Received Unchoke from peer " + remotePeerId);
+                PeerProcess.logger.log("Peer " + localPeerId + " is unchoked by Peer " + remotePeerId + ".");
                 int next = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                 if (next != -1) {
                     sendMessage(new Message.RequestMessage(next));
-                    System.out.println("Sent request for piece " + next + " after unchoke");
+                    PeerProcess.logger.log("Peer " + localPeerId + " sent Request for piece " + next + " to Peer " + remotePeerId + ".");
                 }
 
             } else if (msg instanceof Message.ChokeMessage) {
                 isUnchoked = false;
-                System.out.println("Received Choke from peer " + remotePeerId);
+                PeerProcess.logger.log("Peer " + localPeerId + " is choked by Peer " + remotePeerId + ".");
 
             } else if (msg instanceof Message.RequestMessage) {
                 int idx = ((Message.RequestMessage) msg).pieceIndex;
-                if (!isUnchoked) {
-                    System.out.println("Ignoring request for piece " + idx +
-                                       " from " + remotePeerId + " (choked)");
-                    return;
-                }
+                if (!isUnchoked) return;
                 if (fileManager.getBitfield().get(idx)) {
                     byte[] data = readPieceFromLocalFile(idx);
                     if (data != null) {
                         sendMessage(new Message.PieceMessage(idx, data));
-                        System.out.println("Sent piece " + idx + " to peer " + remotePeerId);
+                        PeerProcess.logger.log("Peer " + localPeerId + " sent piece " + idx + " to Peer " + remotePeerId + ".");
                     }
                 }
 
             } else if (msg instanceof Message.PieceMessage) {
                 Message.PieceMessage pm = (Message.PieceMessage) msg;
                 int idx = pm.pieceIndex;
-                System.out.println("Received piece " + idx + " from peer " + remotePeerId);
                 fileManager.writePiece(idx, pm.pieceData);
                 downloadedBytes += pm.pieceData.length;
+                PeerProcess.logger.log("Peer " + localPeerId + " has downloaded the piece " + idx + " from Peer " + remotePeerId +
+                        ". Now the number of pieces it has is " + fileManager.getBitfield().cardinality() + ".");
 
-                // 🆕 Broadcast HaveMessage
                 for (ConnectionHandler h : PeerProcess.handlers) {
                     if (h != this) {
                         h.sendMessage(new Message.HaveMessage(idx));
-                        System.out.println("Sent HaveMessage for piece " + idx + " to peer " + h.remotePeerId);
+                        PeerProcess.logger.log("Peer " + localPeerId + " sent the ‘have’ message to Peer " + h.remotePeerId + " for piece " + idx + ".");
                     }
                 }
 
@@ -147,26 +144,25 @@ public class ConnectionHandler implements Runnable {
                     int next = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                     if (next != -1) {
                         sendMessage(new Message.RequestMessage(next));
-                        System.out.println("Sent request for piece " + next + " to peer " + remotePeerId);
+                        PeerProcess.logger.log("Peer " + localPeerId + " sent Request for piece " + next + " to Peer " + remotePeerId + ".");
                     }
                 } else if (fileManager.isComplete()) {
-                    System.out.println("Peer " + localPeerId + " has the complete file!");
+                    PeerProcess.logger.log("Peer " + localPeerId + " has downloaded the complete file.");
                 }
 
             } else if (msg instanceof Message.HaveMessage) {
                 int pieceIndex = ((Message.HaveMessage) msg).pieceIndex;
                 remoteBitfield.set(pieceIndex);
-                System.out.println("Received HaveMessage for piece " + pieceIndex + " from peer " + remotePeerId);
-
+                PeerProcess.logger.log("Peer " + localPeerId + " received the ‘have’ message from Peer " + remotePeerId + " for the piece " + pieceIndex + ".");
                 int missing = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                 if (missing != -1) {
                     sendMessage(new Message.InterestedMessage());
                     isInterested = true;
-                    System.out.println(" → Sent Interested to peer " + remotePeerId);
+                    PeerProcess.logger.log("Peer " + localPeerId + " sent Interested to Peer " + remotePeerId + ".");
                 } else {
                     sendMessage(new Message.NotInterestedMessage());
                     isInterested = false;
-                    System.out.println(" → Sent NotInterested to peer " + remotePeerId);
+                    PeerProcess.logger.log("Peer " + localPeerId + " sent NotInterested to Peer " + remotePeerId + ".");
                 }
             }
         } catch (Exception e) {
@@ -191,7 +187,7 @@ public class ConnectionHandler implements Runnable {
     }
 
     private byte[] readPieceFromLocalFile(int pieceIndex) {
-        File f = new File(String.valueOf(localPeerId), "piece_" + pieceIndex + ".dat");
+        File f = new File("peer_" + localPeerId, "piece_" + pieceIndex + ".dat");
         if (!f.exists()) return null;
         try (InputStream is = new BufferedInputStream(new FileInputStream(f))) {
             byte[] data = new byte[(int) f.length()];

@@ -1,0 +1,25 @@
+[2025-04-21 21:37:53]: Peer 1002 is listening on port 6002.
+[2025-04-21 21:37:54]: Peer 1002 setup complete.
+[2025-04-21 21:38:24]: Peer 1002 has the optimistically unchoked neighbor 1004.
+[2025-04-21 21:38:56]: Peer 1002 is listening on port 6002.
+[2025-04-21 21:38:57]: Peer 1002 setup complete.
+[2025-04-21 21:49:38]: Peer 1002 is listening on port 6002.
+[2025-04-21 21:49:39]: Peer 1002 setup complete.
+[2025-04-21 21:49:39]: Peer 1002 is connected from Peer 1001.
+[2025-04-21 21:49:39]: Peer 1002 sent Bitfield to Peer 1001.
+[2025-04-21 21:49:39]: Peer 1002 received Bitfield from Peer 1001.
+[2025-04-21 21:49:39]: Peer 1002 sent Interested to Peer 1001.
+[2025-04-21 21:49:39]: Peer 1002 received NotInterested from Peer 1001.
+[2025-04-21 21:49:41]: Peer 1002 is connected from Peer 1003.
+[2025-04-21 21:49:41]: Peer 1002 sent Bitfield to Peer 1003.
+[2025-04-21 21:49:41]: Peer 1002 received Bitfield from Peer 1003.
+[2025-04-21 21:49:41]: Peer 1002 sent NotInterested to Peer 1003.
+[2025-04-21 21:49:41]: Peer 1002 received NotInterested from Peer 1003.
+[2025-04-21 21:49:42]: Peer 1002 is connected from Peer 1004.
+[2025-04-21 21:49:42]: Peer 1002 sent Bitfield to Peer 1004.
+[2025-04-21 21:49:42]: Peer 1002 received Bitfield from Peer 1004.
+[2025-04-21 21:49:42]: Peer 1002 sent NotInterested to Peer 1004.
+[2025-04-21 21:49:42]: Peer 1002 received NotInterested from Peer 1004.
+[2025-04-21 21:49:43]: Peer 1002 is unchoked by Peer 1001.
+[2025-04-21 21:49:43]: Peer 1002 sent Request for piece 0 to Peer 1001.
+[2025-04-21 21:53:47]: Peer 1002 connection closed by Peer 1001.
