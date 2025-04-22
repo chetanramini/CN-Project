@@ -103,7 +103,6 @@ public class ConnectionHandler implements Runnable {
             } else if (msg instanceof Message.UnchokeMessage) {
                 isUnchoked = true;
                 System.out.println("Received Unchoke from peer " + remotePeerId);
-                // ALWAYS request next piece when unchoked
                 int next = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                 if (next != -1) {
                     sendMessage(new Message.RequestMessage(next));
@@ -136,6 +135,14 @@ public class ConnectionHandler implements Runnable {
                 fileManager.writePiece(idx, pm.pieceData);
                 downloadedBytes += pm.pieceData.length;
 
+                // 🆕 Broadcast HaveMessage
+                for (ConnectionHandler h : PeerProcess.handlers) {
+                    if (h != this) {
+                        h.sendMessage(new Message.HaveMessage(idx));
+                        System.out.println("Sent HaveMessage for piece " + idx + " to peer " + h.remotePeerId);
+                    }
+                }
+
                 if (!fileManager.isComplete() && isUnchoked) {
                     int next = getMissingPiece(remoteBitfield, fileManager.getBitfield());
                     if (next != -1) {
@@ -144,6 +151,22 @@ public class ConnectionHandler implements Runnable {
                     }
                 } else if (fileManager.isComplete()) {
                     System.out.println("Peer " + localPeerId + " has the complete file!");
+                }
+
+            } else if (msg instanceof Message.HaveMessage) {
+                int pieceIndex = ((Message.HaveMessage) msg).pieceIndex;
+                remoteBitfield.set(pieceIndex);
+                System.out.println("Received HaveMessage for piece " + pieceIndex + " from peer " + remotePeerId);
+
+                int missing = getMissingPiece(remoteBitfield, fileManager.getBitfield());
+                if (missing != -1) {
+                    sendMessage(new Message.InterestedMessage());
+                    isInterested = true;
+                    System.out.println(" → Sent Interested to peer " + remotePeerId);
+                } else {
+                    sendMessage(new Message.NotInterestedMessage());
+                    isInterested = false;
+                    System.out.println(" → Sent NotInterested to peer " + remotePeerId);
                 }
             }
         } catch (Exception e) {
