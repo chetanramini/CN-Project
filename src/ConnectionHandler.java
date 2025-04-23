@@ -12,6 +12,7 @@ public class ConnectionHandler implements Runnable {
     private DataOutputStream dout;
     private FileManager fileManager;
     private BitSet remoteBitfield = new BitSet();
+    private static volatile boolean shuttingDown = false;
 
     // Choking/unchoking flags:
     public boolean isInterested = false;
@@ -149,10 +150,21 @@ public class ConnectionHandler implements Runnable {
                         sendMessage(new Message.RequestMessage(next));
                         System.out.println("Sent request for piece " + next + " to peer " + remotePeerId);
                     }
-                } else if (fileManager.isComplete()) {
+                } else if (fileManager.isComplete() && !shuttingDown) {
+                    shuttingDown = true;
                     System.out.println("Peer " + localPeerId + " has the complete file!");
-                }
-
+                
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(2000);  // Give time for logs/messages
+                            System.out.println("Peer " + localPeerId + " shutting down...");
+                            System.exit(0);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }).start();
+                }                
+                
             } else if (msg instanceof Message.HaveMessage) {
                 int pieceIndex = ((Message.HaveMessage) msg).pieceIndex;
                 remoteBitfield.set(pieceIndex);
@@ -202,4 +214,20 @@ public class ConnectionHandler implements Runnable {
         }
         return null;
     }
+    
+    public void closeConnection() {
+        try {
+            if (din != null) din.close();
+            if (dout != null) dout.close();
+            if (socket != null && !socket.isClosed()) socket.close();
+            System.out.println("Closed connection to peer " + remotePeerId);
+        } catch (IOException e) {
+            System.err.println("Error while closing connection to peer " + remotePeerId);
+            e.printStackTrace();
+        }
+    }    
+
+    public boolean isSocketClosed() {
+        return socket == null || socket.isClosed();
+    }    
 }
