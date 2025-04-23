@@ -10,7 +10,7 @@ public class PeerProcess {
     private List<PeerInfo> peerInfoList = new ArrayList<>();
     // Use a thread-safe list for all handlers
     public static List<ConnectionHandler> handlers = new CopyOnWriteArrayList<>();
-
+    private ServerSocket serverSocket;   // Track the server socket
     private FileManager fileManager;
 
     public PeerProcess(int localPeerId) {
@@ -48,6 +48,10 @@ public class PeerProcess {
             scheduleChokingTasks();
             scheduleOptimisticUnchoking();
 
+            monitorSeederShutdown();
+
+            setupShutdownHook();
+
             System.out.println("Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
             e.printStackTrace();
@@ -70,7 +74,9 @@ public class PeerProcess {
         int myPort = peerInfoList.stream()
             .filter(pi -> pi.peerId == localPeerId)
             .findFirst().get().port;
-        try (ServerSocket serverSocket = new ServerSocket(myPort)) {
+    
+        try {
+            serverSocket = new ServerSocket(myPort);
             System.out.println("Peer " + localPeerId + " listening on port " + myPort);
             while (true) {
                 Socket sock = serverSocket.accept();
@@ -81,7 +87,7 @@ public class PeerProcess {
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
+    }    
 
     private void initiateConnections() {
         for (PeerInfo pi : peerInfoList) {
@@ -177,6 +183,47 @@ public class PeerProcess {
             System.out.println("Peer " + localPeerId +
                 " has optimistically unchoked peer " + chosen.remotePeerId);
         }, 0, m, TimeUnit.SECONDS);
+    }    
+
+    private void setupShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("⚠️ Shutdown initiated for Peer " + localPeerId);
+            try {
+                if (serverSocket != null && !serverSocket.isClosed()) {
+                    serverSocket.close();
+                    System.out.println("Server socket closed.");
+                }
+            } catch (IOException e) {
+                System.err.println("Error closing server socket.");
+                e.printStackTrace();
+            }
+    
+            for (ConnectionHandler handler : handlers) {
+                handler.closeConnection();
+            }
+            System.out.println("✅ All connections closed for Peer " + localPeerId);
+        }));
+    } 
+    
+    private void monitorSeederShutdown() {
+        if (!fileManager.isComplete()) return;  // Only for seeders
+    
+        new Thread(() -> {
+            try {
+                while (true) {
+                    Thread.sleep(5000);  // Check every 5 seconds
+                    boolean activePeers = handlers.stream()
+                        .anyMatch(h -> !h.isSocketClosed());
+    
+                    if (!activePeers) {
+                        System.out.println("Seeder Peer " + localPeerId + " detected all peers disconnected. Shutting down...");
+                        System.exit(0);
+                    }
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
     }    
 }
 
