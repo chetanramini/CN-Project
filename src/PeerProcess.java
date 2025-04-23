@@ -10,7 +10,6 @@ public class PeerProcess {
     private List<PeerInfo> peerInfoList = new ArrayList<>();
     // Use a thread-safe list for all handlers
     public static List<ConnectionHandler> handlers = new CopyOnWriteArrayList<>();
-    public static Logger logger;
 
     private FileManager fileManager;
 
@@ -30,8 +29,7 @@ public class PeerProcess {
                 .findFirst()
                 .get()
                 .hasFile;
-                logger = new Logger(localPeerId);
-                fileManager = new FileManager(
+            fileManager = new FileManager(
                 String.valueOf(localPeerId),
                 config.fileName,
                 config.fileSize,
@@ -50,7 +48,7 @@ public class PeerProcess {
             scheduleChokingTasks();
             scheduleOptimisticUnchoking();
 
-            logger.log("Peer " + localPeerId + " setup complete.");
+            System.out.println("Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -73,7 +71,7 @@ public class PeerProcess {
             .filter(pi -> pi.peerId == localPeerId)
             .findFirst().get().port;
         try (ServerSocket serverSocket = new ServerSocket(myPort)) {
-            logger.log("Peer " + localPeerId + " is listening on port " + myPort + ".");
+            System.out.println("Peer " + localPeerId + " listening on port " + myPort);
             while (true) {
                 Socket sock = serverSocket.accept();
                 ConnectionHandler handler = new ConnectionHandler(sock, localPeerId, fileManager);
@@ -94,7 +92,7 @@ public class PeerProcess {
                     handlers.add(handler);
                     new Thread(handler).start();
                 } catch (IOException e) {
-                    logger.log("Failed to connect to peer " + pi.peerId + ".");
+                    System.out.println("Failed to connect to peer " + pi.peerId);
                 }
             }
         }
@@ -124,7 +122,7 @@ public class PeerProcess {
             String prefIds = preferred.stream()
                 .map(h -> String.valueOf(h.remotePeerId))
                 .collect(Collectors.joining(","));
-                logger.log("Peer " + localPeerId + " has the preferred neighbors " + prefIds + ".");
+            System.out.println("Peer " + localPeerId + " has preferred neighbors " + prefIds);
     
             // 5. Send choke/unchoke
             for (ConnectionHandler h : handlers) {
@@ -133,13 +131,13 @@ public class PeerProcess {
                         h.sendMessage(new Message.UnchokeMessage());
                         h.isUnchoked = true;
                         h.isOptimistic = false;
-                        logger.log("Peer " + h.remotePeerId + " is unchoked by Peer " + localPeerId + ".");
+                        System.out.println(" → Unchoked peer " + h.remotePeerId);
                     }
                 } else {
                     if (h.isUnchoked && !h.isOptimistic) {
                         h.sendMessage(new Message.ChokeMessage());
                         h.isUnchoked = false;
-                        logger.log("Peer " + h.remotePeerId + " is choked by Peer " + localPeerId + ".");
+                        System.out.println(" → Choked peer " + h.remotePeerId);
                     }
                 }
     
@@ -176,7 +174,8 @@ public class PeerProcess {
             chosen.isUnchoked = true;
             chosen.isOptimistic = true;
     
-            logger.log("Peer " + localPeerId + " has the optimistically unchoked neighbor " + chosen.remotePeerId + ".");
+            System.out.println("Peer " + localPeerId +
+                " has optimistically unchoked peer " + chosen.remotePeerId);
         }, 0, m, TimeUnit.SECONDS);
     }    
 }
