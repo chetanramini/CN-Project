@@ -60,6 +60,8 @@ public abstract class Message {
                 int pieceIdx = buf.getInt();
                 byte[] pieceData = Arrays.copyOfRange(payload, 4, payload.length);
                 return new PieceMessage(pieceIdx, pieceData);
+            case 8:
+                return new CompleteMessage();
             default:
                 throw new Exception("Unknown message type: " + type);
         }
@@ -128,4 +130,10 @@ public abstract class Message {
             return buffer.array();
         }
     }
+
+    public static class CompleteMessage extends Message {
+        public CompleteMessage() {
+            super((byte) 8, new byte[0]); // Cast to byte ✅
+        }
+    }       
 }

@@ -12,6 +12,8 @@ public class PeerProcess {
     public static List<ConnectionHandler> handlers = new CopyOnWriteArrayList<>();
     private ServerSocket serverSocket;   // Track the server socket
     private FileManager fileManager;
+    public static Set<Integer> completedPeers = ConcurrentHashMap.newKeySet();
+    public static int peerCount;
 
     public PeerProcess(int localPeerId) {
         this.localPeerId = localPeerId;
@@ -51,6 +53,8 @@ public class PeerProcess {
             monitorSeederShutdown();
 
             setupShutdownHook();
+            peerCount = peerInfoList.size();
+
 
             Logger.log(localPeerId, "Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
