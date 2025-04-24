@@ -89,7 +89,10 @@ public class FileManager {
             os.write(data);
         }
         bitfield.set(pieceIndex, true);
-        System.out.println("Wrote piece " + pieceIndex + " to " + peerFolder);
+        Logger.log(
+            Integer.parseInt(peerFolder.replaceAll("[^0-9]", "")),
+            "Wrote piece " + pieceIndex + " to peer " + peerFolder
+        );
     }
 
     // Checks if the complete file has been assembled.

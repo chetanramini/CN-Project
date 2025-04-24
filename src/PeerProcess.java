@@ -52,7 +52,7 @@ public class PeerProcess {
 
             setupShutdownHook();
 
-            System.out.println("Peer " + localPeerId + " setup complete.");
+            Logger.log(localPeerId, "Peer " + localPeerId + " setup complete.");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -77,13 +77,20 @@ public class PeerProcess {
     
         try {
             serverSocket = new ServerSocket(myPort);
-            System.out.println("Peer " + localPeerId + " listening on port " + myPort);
-            while (true) {
-                Socket sock = serverSocket.accept();
-                ConnectionHandler handler = new ConnectionHandler(sock, localPeerId, fileManager);
-                handlers.add(handler);
-                new Thread(handler).start();
-            }
+            Logger.log(localPeerId, "Peer " + localPeerId + " is listening on port " + myPort + ".");
+            try {
+                while (true) {
+                    Socket sock = serverSocket.accept();
+                    ConnectionHandler handler = new ConnectionHandler(sock, localPeerId, fileManager);
+                    handlers.add(handler);
+                    new Thread(handler).start();
+                }
+            } catch (SocketException e) {
+                Logger.log(localPeerId, "Server socket closed, no longer accepting connections.");
+            } catch (IOException e) {
+                Logger.log(localPeerId, "IOException in server socket: " + e.getMessage());
+                e.printStackTrace();
+            }            
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -98,7 +105,7 @@ public class PeerProcess {
                     handlers.add(handler);
                     new Thread(handler).start();
                 } catch (IOException e) {
-                    System.out.println("Failed to connect to peer " + pi.peerId);
+                    Logger.log(localPeerId, "Peer " + localPeerId + " failed to connect to peer " + pi.peerId + ".");
                 }
             }
         }
@@ -128,7 +135,7 @@ public class PeerProcess {
             String prefIds = preferred.stream()
                 .map(h -> String.valueOf(h.remotePeerId))
                 .collect(Collectors.joining(","));
-            System.out.println("Peer " + localPeerId + " has preferred neighbors " + prefIds);
+                Logger.log(localPeerId, "Peer " + localPeerId + " has the preferred neighbors " + prefIds + ".");
     
             // 5. Send choke/unchoke
             for (ConnectionHandler h : handlers) {
@@ -137,13 +144,13 @@ public class PeerProcess {
                         h.sendMessage(new Message.UnchokeMessage());
                         h.isUnchoked = true;
                         h.isOptimistic = false;
-                        System.out.println(" → Unchoked peer " + h.remotePeerId);
+                        Logger.log(localPeerId, "Peer " + h.remotePeerId + " is unchoked by " + localPeerId + ".");
                     }
                 } else {
                     if (h.isUnchoked && !h.isOptimistic) {
                         h.sendMessage(new Message.ChokeMessage());
                         h.isUnchoked = false;
-                        System.out.println(" → Choked peer " + h.remotePeerId);
+                        Logger.log(localPeerId, "Peer " + h.remotePeerId + " is choked by " + localPeerId + ".");
                     }
                 }
     
@@ -156,7 +163,7 @@ public class PeerProcess {
 
     public static void main(String[] args) {
         if (args.length != 1) {
-            System.err.println("Usage: java PeerProcess <peerId>");
+            Logger.log(0, "Usage: java PeerProcess <peerId>"); // Use 0 since peerId is unknown at this point
             System.exit(1);
         }
         new PeerProcess(Integer.parseInt(args[0])).start();
@@ -176,32 +183,33 @@ public class PeerProcess {
     
             // Pick one at random
             ConnectionHandler chosen = candidates.get(new Random().nextInt(candidates.size()));
-            chosen.sendMessage(new Message.UnchokeMessage());
-            chosen.isUnchoked = true;
-            chosen.isOptimistic = true;
-    
-            System.out.println("Peer " + localPeerId +
-                " has optimistically unchoked peer " + chosen.remotePeerId);
+            if (!chosen.isSocketClosed()) {
+                chosen.sendMessage(new Message.UnchokeMessage());
+                chosen.isUnchoked = true;
+                chosen.isOptimistic = true;
+                Logger.log(localPeerId, "Peer " + localPeerId + " has the optimistically unchoked neighbor " + chosen.remotePeerId + ".");
+            }
+            
         }, 0, m, TimeUnit.SECONDS);
     }    
 
     private void setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("⚠️ Shutdown initiated for Peer " + localPeerId);
+            Logger.log(localPeerId, "Shutdown initiated for peer " + localPeerId + ".");
             try {
                 if (serverSocket != null && !serverSocket.isClosed()) {
                     serverSocket.close();
-                    System.out.println("Server socket closed.");
+                    Logger.log(localPeerId, "Server socket closed.");
                 }
             } catch (IOException e) {
-                System.err.println("Error closing server socket.");
+                Logger.log(localPeerId, "Error while closing server socket.");
                 e.printStackTrace();
             }
     
             for (ConnectionHandler handler : handlers) {
                 handler.closeConnection();
             }
-            System.out.println("✅ All connections closed for Peer " + localPeerId);
+            Logger.log(localPeerId, "All connections closed for peer " + localPeerId + ".");
         }));
     } 
     
@@ -216,7 +224,7 @@ public class PeerProcess {
                         .anyMatch(h -> !h.isSocketClosed());
     
                     if (!activePeers) {
-                        System.out.println("Seeder Peer " + localPeerId + " detected all peers disconnected. Shutting down...");
+                        Logger.log(localPeerId, "Seeder peer " + localPeerId + " detected all peers disconnected. Shutting down...");
                         System.exit(0);
                     }
                 }
