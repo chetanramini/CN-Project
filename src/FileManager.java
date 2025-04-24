@@ -33,7 +33,8 @@ public class FileManager {
             return false;
         }
         try {
-            int peerId = Integer.parseInt(folderName);
+            String numericId = folderName.replaceAll("[^0-9]", "");  // Extract digits only
+            int peerId = Integer.parseInt(numericId);
             return peerId >= 1001 && peerId <= 1006;
         } catch (NumberFormatException e) {
             return false;

@@ -228,7 +228,8 @@ public class ConnectionHandler implements Runnable {
     }
 
     private byte[] readPieceFromLocalFile(int pieceIndex) {
-        File f = new File(String.valueOf(localPeerId), "piece_" + pieceIndex + ".dat");
+        File f = new File("peer_" + localPeerId, "piece_" + pieceIndex + ".dat");
+
         if (!f.exists()) return null;
         try (InputStream is = new BufferedInputStream(new FileInputStream(f))) {
             byte[] data = new byte[(int) f.length()];

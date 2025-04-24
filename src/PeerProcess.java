@@ -31,12 +31,12 @@ public class PeerProcess {
                 .findFirst()
                 .get()
                 .hasFile;
-            fileManager = new FileManager(
-                String.valueOf(localPeerId),
-                config.fileName,
-                config.fileSize,
-                config.pieceSize,
-                hasFile
+                fileManager = new FileManager(
+                    "peer_" + localPeerId,
+                    config.fileName,
+                    config.fileSize,
+                    config.pieceSize,
+                    hasFile
             );
 
             // 3. Start listening for incoming connections
@@ -167,11 +167,34 @@ public class PeerProcess {
 
     public static void main(String[] args) {
         if (args.length != 1) {
-            Logger.log(0, "Usage: java PeerProcess <peerId>"); // Use 0 since peerId is unknown at this point
+            Logger.log(0, "Usage: java PeerProcess <peerId> or <peer_xxxx>");
             System.exit(1);
         }
-        new PeerProcess(Integer.parseInt(args[0])).start();
+    
+        String input = args[0];
+        int peerId;
+    
+        if (input.startsWith("peer_")) {
+            try {
+                peerId = Integer.parseInt(input.substring(5));
+            } catch (NumberFormatException e) {
+                Logger.log(0, "Invalid peer ID format. Use like: peer_1001 or just 1001.");
+                System.exit(1);
+                return;
+            }
+        } else {
+            try {
+                peerId = Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                Logger.log(0, "Invalid peer ID format. Use like: peer_1001 or just 1001.");
+                System.exit(1);
+                return;
+            }
+        }
+    
+        new PeerProcess(peerId).start();
     }
+    
 
     private void scheduleOptimisticUnchoking() {
         ScheduledExecutorService svc = Executors.newScheduledThreadPool(1);
