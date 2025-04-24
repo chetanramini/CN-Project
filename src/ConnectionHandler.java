@@ -152,6 +152,10 @@ public class ConnectionHandler implements Runnable {
                 } else if (fileManager.isComplete() && !shuttingDown) {
                     shuttingDown = true;
                     Logger.log(localPeerId, "Peer " + localPeerId + " has downloaded the complete file.");
+                    for (ConnectionHandler h : PeerProcess.handlers) {
+                        h.sendMessage(new Message.CompleteMessage());
+                    }
+                    
                 
                     new Thread(() -> {
                         try {
@@ -179,7 +183,24 @@ public class ConnectionHandler implements Runnable {
                     isInterested = false;
                     Logger.log(localPeerId, "Peer " + localPeerId + " sent 'not interested' to " + remotePeerId + ".");
                 }
-            }
+            } else if (msg instanceof Message.CompleteMessage) {
+                PeerProcess.completedPeers.add(remotePeerId);
+                Logger.log(localPeerId, "Peer " + localPeerId + " received COMPLETE message from peer " + remotePeerId + ".");
+            
+                // Check if we should shut down
+                if (fileManager.isComplete() && PeerProcess.completedPeers.size() == PeerProcess.peerCount - 1 && !shuttingDown) {
+                    shuttingDown = true;
+                    Logger.log(localPeerId, "All peers have completed. Shutting down...");
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(2000);
+                            System.exit(0);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }).start();
+                }
+            }            
         } catch (Exception e) {
             e.printStackTrace();
         }
